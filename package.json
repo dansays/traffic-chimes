@@ -1,0 +1,16 @@
+{
+  "name": "traffic-chimes",
+  "version": "0.1.0",
+  "description": "Serves the audio of 'The 101 Plays Itself' as a live MP3 stream",
+  "type": "module",
+  "private": true,
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "prototype": "node scripts/prototype.js"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "puppeteer": "^24.0.0"
+  }
+}

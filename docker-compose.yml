@@ -1,0 +1,19 @@
+services:
+  traffic-chimes:
+    build: .
+    image: traffic-chimes:latest
+    container_name: traffic-chimes
+    restart: unless-stopped
+    init: true
+    ports:
+      - "8000:8000"
+    shm_size: 512m          # Chromium needs a real /dev/shm
+    mem_limit: 1500m
+    environment:
+      INSTRUMENTS: theremin,glass,marimba   # any of: see README
+      BITRATE: 128k
+      IDLE_SECONDS: 60        # keep running this long after the last listener leaves
+      STALL_SECONDS: 30
+      RELOAD_HOURS: 24
+      LOG_LEVEL: info
+      TZ: America/Los_Angeles
