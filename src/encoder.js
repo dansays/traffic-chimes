@@ -22,7 +22,10 @@ export class Encoder extends EventEmitter {
   start() {
     if (this.proc) return;
     const args = ['-hide_banner', '-loglevel', 'warning', '-nostdin',
-      '-f', 'webm', '-i', 'pipe:0', '-vn', '-ac', '2', '-ar', '44100',
+      '-f', 'webm', '-i', 'pipe:0', '-vn',
+      // MediaRecorder timestamps occasionally step backwards by a few ms after a
+      // stall; async resampling absorbs that instead of the muxer complaining.
+      '-af', 'aresample=async=1:first_pts=0', '-ac', '2', '-ar', '44100',
       '-c:a', 'libmp3lame', '-b:a', this.bitrate, '-f', 'mp3',
       '-write_xing', '0', '-id3v2_version', '0', 'pipe:1'];
     const proc = spawn(this.ffmpegPath, args, { stdio: ['pipe', 'pipe', 'pipe'] });

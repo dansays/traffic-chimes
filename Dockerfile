@@ -3,7 +3,7 @@
 FROM node:22-bookworm-slim
 
 # Debian's chromium ships with proprietary codecs, so the Caltrans H.264 HLS
-# feed decodes. tini reaps Chromium's helper processes. curl is for HEALTHCHECK.
+# feed decodes. tini (-s: works even when not PID 1) reaps Chromium helpers. curl is for HEALTHCHECK.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       chromium ffmpeg tini curl ca-certificates fonts-liberation \
@@ -26,5 +26,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD curl -fsS http://localhost:8000/health > /dev/null || exit 1
 
-ENTRYPOINT ["/usr/bin/tini", "--"]
+ENTRYPOINT ["/usr/bin/tini", "-s", "--"]
 CMD ["node", "src/index.js"]

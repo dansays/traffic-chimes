@@ -37,13 +37,20 @@ Caltrans HLS ─▶ headless Chromium (the site, unmodified)
 Requires Container Manager (x86_64 models) or Docker over SSH.
 
 ```sh
-# on the NAS, in a folder containing this repo
-docker compose up -d --build
-docker compose logs -f
+# on the NAS, in a folder containing this repo (e.g. /volume1/docker/traffic-chimes)
+sudo docker build -t traffic-chimes:latest .
+sudo docker compose up -d
+sudo docker compose logs -f
 ```
 
+Build with plain `docker build` rather than `docker compose up --build`: on Synology's
+Container Manager (Docker 24) the compose path uses BuildKit, which hung indefinitely on
+the apt step, while the classic builder completes. Expect the first build to take
+20-40 minutes on a NAS because installing chromium is disk-bound; rebuilds after code
+changes reuse that layer and take seconds.
+
 Or in Container Manager: **Project → Create**, point it at this folder, and it will
-pick up `docker-compose.yml`.
+pick up `docker-compose.yml` (build the image first as above).
 
 Then play `http://<nas-ip>:8000/stream.mp3`. A status page lives at
 `http://<nas-ip>:8000/` and JSON health at `/health` (503 when the stream has stalled).
