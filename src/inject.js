@@ -67,15 +67,32 @@ export function injectScript() {
     window.AudioContext = TappedAudioContext;
     if (window.webkitAudioContext) window.webkitAudioContext = TappedAudioContext;
 
-    if (cfg.throttleRaf) {
-      const period = 1000 / cfg.rafFps;
-      const realRaf = window.requestAnimationFrame.bind(window);
-      let last = 0;
-      window.requestAnimationFrame = (fn) => realRaf((t) => {
-        if (t - last >= period) { last = t; fn(t); }
-        else setTimeout(() => window.requestAnimationFrame(fn), period - (t - last));
-      });
-    }
+    // The site's frame loop (sample -> flush -> draw -> ... -> requestAnimationFrame(loop))
+    // re-arms itself as its last statement, so one exception thrown while drawing kills
+    // detection for the rest of the session while the video keeps playing. Seen on a
+    // slow NAS as "IndexSizeError: arc radius negative". Two guards:
+    //  1. clamp negative radii so that particular throw cannot happen;
+    //  2. if a rAF callback throws anyway, log it and schedule it again next frame.
+    const realArc = CanvasRenderingContext2D.prototype.arc;
+    CanvasRenderingContext2D.prototype.arc = function (x, y, r, ...rest) {
+      return realArc.call(this, x, y, r < 0 || !isFinite(r) ? 0 : r, ...rest);
+    };
+
+    const realRaf = window.requestAnimationFrame.bind(window);
+    const period = cfg.throttleRaf ? 1000 / cfg.rafFps : 0;
+    let last = 0, rescued = 0;
+    const guarded = (fn) => (t) => {
+      try { fn(t); }
+      catch (err) {
+        rescued++;
+        if (rescued <= 5 || rescued % 100 === 0) log('rAF callback threw (rescued ' + rescued + '):', err && err.message);
+        realRaf(guarded(fn)); // the loop did not reach its own re-arm; do it for it
+      }
+    };
+    window.requestAnimationFrame = (fn) => realRaf((t) => {
+      if (!period || t - last >= period) { last = t; guarded(fn)(t); }
+      else setTimeout(() => window.requestAnimationFrame(fn), period - (t - last));
+    });
 
     // Report the page's own status text so Node can log stream state.
     window.addEventListener('DOMContentLoaded', () => {

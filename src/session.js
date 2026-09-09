@@ -37,6 +37,7 @@ export class Session extends EventEmitter {
     this.watchdog = null;
     this.reloadTimer = null;
     this.lastVideo = { t: -1, at: 0 };
+    this.lastNotes = { n: -1, at: 0 };
     this.recycling = false;
     this.probe = null;
     this.stopping = false; // set while stop()/shutdown() tear things down on purpose
@@ -114,6 +115,7 @@ export class Session extends EventEmitter {
     this.lastChunkAt = this.startedAt;
     this.lastMp3At = 0;
     this.lastVideo = { t: -1, at: this.startedAt };
+    this.lastNotes = { n: -1, at: this.startedAt };
     this.silence.start((b) => this.cast.write(b));
     this.encoder.start();
     try {
@@ -178,6 +180,15 @@ export class Session extends EventEmitter {
     else if (v && now - this.lastVideo.at > this.cfg.videoStallSeconds * 1000) {
       this.failures++;
       return this.queue(() => this.recycle(`video clock frozen for ${((now - this.lastVideo.at) / 1000).toFixed(0)}s`));
+    }
+    // Detection can die while the video keeps playing (a thrown exception in the
+    // page's frame loop). A freeway with five lanes never goes this long without a car.
+    if (v && typeof v.notes === 'number') {
+      if (v.notes !== this.lastNotes.n) this.lastNotes = { n: v.notes, at: now };
+      else if (this.cfg.noteStallSeconds > 0 && v.notes > 0 && now - this.lastNotes.at > this.cfg.noteStallSeconds * 1000) {
+        this.failures++;
+        return this.queue(() => this.recycle(`no new notes for ${((now - this.lastNotes.at) / 1000).toFixed(0)}s while video plays`));
+      }
     }
   }
 

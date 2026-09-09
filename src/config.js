@@ -26,6 +26,7 @@ export const config = {
   streamUrl: env('STREAM_URL', ''),         // optional camera override (page supports ?stream=)
   stallSeconds: num('STALL_SECONDS', 30),   // no audio chunks for this long -> recycle page
   videoStallSeconds: num('VIDEO_STALL_SECONDS', 120), // video clock frozen this long -> recycle page
+  noteStallSeconds: num('NOTE_STALL_SECONDS', 300),   // video playing but no notes this long -> recycle (0 = off)
   startupTimeoutSeconds: num('STARTUP_TIMEOUT_SECONDS', 90),
   idleSeconds: num('IDLE_SECONDS', 60),     // grace period after the last listener leaves
   killBrowserWhenIdle: bool('KILL_BROWSER_WHEN_IDLE', false),
