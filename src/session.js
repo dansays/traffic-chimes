@@ -38,16 +38,21 @@ export class Session extends EventEmitter {
     this.reloadTimer = null;
     this.lastVideo = { t: -1, at: 0 };
     this.recycling = false;
+    this.probe = null;
+    this.stopping = false; // set while stop()/shutdown() tear things down on purpose
     this.op = Promise.resolve(); // serialises start/stop/recycle
 
     browser.on('chunk', (buf) => {
       this.lastChunkAt = Date.now();
       this.encoder.write(buf);
     });
-    browser.on('crash', () => this.queue(() => this.recycle('page crashed')));
-    browser.on('gone', () => { if (this.state !== State.IDLE) this.queue(() => this.recycle('browser gone')); });
+    browser.on('crash', () => { if (!this.stopping) this.queue(() => this.recycle('page crashed')); });
+    browser.on('gone', () => {
+      if (!this.stopping && this.state !== State.IDLE) this.queue(() => this.recycle('browser gone'));
+    });
     encoder.on('data', (buf) => this.onMp3(buf));
     encoder.on('exit', () => {
+      if (this.stopping) return;
       if (this.state === State.STARTING || this.state === State.LIVE || this.state === State.DRAINING) {
         this.queue(() => this.recycle('encoder exited'));
       }
@@ -150,8 +155,11 @@ export class Session extends EventEmitter {
     if (this.watchdog) clearInterval(this.watchdog);
     if (this.reloadTimer) clearInterval(this.reloadTimer);
     this.watchdog = this.reloadTimer = null;
-    await this.tearDown();
-    if (this.cfg.killBrowserWhenIdle) await this.browser.close();
+    this.stopping = true;
+    try {
+      await this.tearDown();
+      if (this.cfg.killBrowserWhenIdle) await this.browser.close();
+    } finally { this.stopping = false; }
     this.setState(State.IDLE);
   }
 
@@ -165,6 +173,7 @@ export class Session extends EventEmitter {
       return this.queue(() => this.recycle(`no audio for ${sinceChunk.toFixed(0)}s`));
     }
     const v = await this.browser.videoTime();
+    if (v) this.probe = v;
     if (v && v.t !== this.lastVideo.t) this.lastVideo = { t: v.t, at: now };
     else if (v && now - this.lastVideo.at > this.cfg.videoStallSeconds * 1000) {
       this.failures++;
@@ -176,6 +185,7 @@ export class Session extends EventEmitter {
     if (this.idleTimer) clearTimeout(this.idleTimer);
     if (this.watchdog) clearInterval(this.watchdog);
     if (this.reloadTimer) clearInterval(this.reloadTimer);
+    this.stopping = true;
     await this.tearDown();
     await this.browser.close();
     this.setState(State.IDLE);
@@ -191,6 +201,7 @@ export class Session extends EventEmitter {
       sessionUptimeS: this.startedAt && this.state !== State.IDLE ? Math.round((now - this.startedAt) / 1000) : 0,
       restarts: this.restarts,
       video: this.lastVideo.t >= 0 ? this.lastVideo.t : null,
+      probe: this.state === State.IDLE ? null : this.probe || null,
     };
   }
 }

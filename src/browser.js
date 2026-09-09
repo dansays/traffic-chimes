@@ -22,6 +22,12 @@ export class Browser extends EventEmitter {
 
   async launch() {
     if (this.browser && this.browser.connected) return this.browser;
+    if (this.launching) return this.launching; // prelaunch and openPage can race
+    this.launching = this._launch().finally(() => { this.launching = null; });
+    return this.launching;
+  }
+
+  async _launch() {
     this.browser = await puppeteer.launch({
       headless: true,
       executablePath: this.chromePath,
@@ -34,10 +40,10 @@ export class Browser extends EventEmitter {
       ],
     });
     this.browser.on('disconnected', () => {
-      if (this.closing) log.debug('browser disconnected');
-      else log.warn('browser disconnected unexpectedly');
       this.browser = null;
       this.page = null;
+      if (this.closing) { log.debug('browser disconnected'); return; }
+      log.warn('browser disconnected unexpectedly');
       this.emit('gone');
     });
     log.info('launched', this.chromePath || '(bundled chrome)');
@@ -76,7 +82,12 @@ export class Browser extends EventEmitter {
     try {
       return await this.page.evaluate(() => {
         const v = document.querySelector('video');
-        return v ? { t: v.currentTime, readyState: v.readyState, paused: v.paused } : null;
+        const st = document.getElementById('status');
+        return v ? {
+          t: v.currentTime, readyState: v.readyState, paused: v.paused,
+          size: `${v.videoWidth}x${v.videoHeight}`, notes: window.__tcNotes || 0,
+          status: st ? st.textContent.trim() : '',
+        } : null;
       });
     } catch { return null; }
   }

@@ -42,11 +42,14 @@ export function injectScript() {
       log('recorder started');
     }
 
+    window.__tcNotes = 0; // oscillators started: a cheap "did any car become a note" counter
+
     class TappedAudioContext extends Real {
       constructor(...args) {
         super(...args);
         this.__tap = null;
       }
+      createOscillator() { window.__tcNotes++; return super.createOscillator(); }
       get destination() {
         if (!this.__tap) {
 
